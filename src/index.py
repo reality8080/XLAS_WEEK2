@@ -11,6 +11,9 @@ import sys
 from Class.Meadian_Filter import Meadian_Filter
 from Class.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
 from Class.Gaussian import Gaussian
+from Class.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
+from Class.Laplacian import Laplacian
+from Class.Gradien_Sobel import Gradien_Sobel
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -25,7 +28,10 @@ if __name__ == "__main__":
     min_filter_processor = Min_Filter()
     mid_filter_processor = Mid_Filter()
     gaussian_filter_processor = Gaussian()
-
+    unsharp = UnsharpMasking_HighBoost()
+    laplacian = Laplacian()
+    sobel = Gradien_Sobel()
+    
     window = ImageApp(
         negative_processor=negative, 
         log_processor=log, 
@@ -37,7 +43,10 @@ if __name__ == "__main__":
         max_filter_processor=max_filter_processor,
         min_filter_processor=min_filter_processor,
         mid_filter_processor=mid_filter_processor,
-        gaussian_filter_processor=gaussian_filter_processor
+        gaussian_filter_processor=gaussian_filter_processor,
+        unsharp_processor=unsharp,
+        laplacian_processor=laplacian,
+        sobel_processor=sobel
     )
     window.show()
     sys.exit(app.exec_())

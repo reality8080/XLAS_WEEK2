@@ -42,7 +42,7 @@ class Laplacian:
                 (center - 1, center),  # Up
                 (center + 1, center),  # Down
                 (center, center - 1),  # Left
-                (center, center + 1)   # Right
+                (center, center + 1),   # Right
                 (center - 1, center - 1),  # Top-Left
                 (center - 1, center + 1),  # Top-Right
                 (center + 1, center - 1),  # Bottom-Left

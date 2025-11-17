@@ -23,6 +23,10 @@ from Class.Meadian_Filter import Meadian_Filter # Lỗi chính tả trong tên f
 from Class.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
 from Class.Gaussian import Gaussian
 
+from Class.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
+from Class.Laplacian import Laplacian
+from Class.Gradien_Sobel import Gradien_Sobel
+
 class ImageApp(QWidget):
     def __init__(self, 
                  negative_processor: Negative, 
@@ -35,7 +39,10 @@ class ImageApp(QWidget):
                  max_filter_processor: Max_Filter,
                  min_filter_processor: Min_Filter,
                  mid_filter_processor: Mid_Filter,
-                 gaussian_filter_processor: Gaussian
+                 gaussian_filter_processor: Gaussian,
+                 unsharp_processor: UnsharpMasking_HighBoost,
+                 laplacian_processor: Laplacian,
+                 sobel_processor: Gradien_Sobel,
                  ):
         super().__init__()
         # === 1. Khởi tạo các Bộ xử lý ===
@@ -50,6 +57,10 @@ class ImageApp(QWidget):
         self.min_filter_processor = min_filter_processor
         self.mid_filter_processor = mid_filter_processor
         self.gaussian_filter_processor = gaussian_filter_processor
+
+        self.unsharp_processor = unsharp_processor
+        self.laplacian_processor = laplacian_processor
+        self.sobel_processor = sobel_processor
 
         # === 2. Trạng thái ảnh và chế độ tự động ===
         self.current_image_rgb = None
@@ -119,6 +130,22 @@ class ImageApp(QWidget):
         self.r2_slider = self._create_slider(0, 255, 140, 1)
         self.s2_slider = self._create_slider(0, 255, 255, 1)
         
+
+        # --- Unsharp Masking ---
+        self.unsharp_button = QPushButton("Unsharp Masking")
+        self.highboost_button = QPushButton("High Boost")
+        self.amount_slider = self._create_slider(0, 300, 100, 10)  # 0.0 -> 3.0
+        self.threshold_slider = self._create_slider(0, 50, 0, 1)   # ngưỡng
+
+        # --- Laplacian ---
+        self.laplacian_button = QPushButton("Laplacian Filter")
+        self.lap_neigh_slider = self._create_slider(0, 3, 1, 1)  # 0:4, 1:8, 2:16, 3:full
+
+        # --- Sobel ---
+        self.sobel_x_button = QPushButton("Sobel X")
+        self.sobel_y_button = QPushButton("Sobel Y")
+        self.sobel_mag_button = QPushButton("Sobel Magnitude")
+        self.sobel_ksize_slider = self._create_slider(3, 15, 3, 2, True)  # chỉ số lẻ
         # === 3. Layout Điều khiển ===
         control_layout = QFormLayout()
         
@@ -151,6 +178,22 @@ class ImageApp(QWidget):
         
         control_layout.addRow("Sigma (Gaussian):", self.sigma_slider)
         control_layout.addRow(self.gaussian_filter_button)
+
+        # Unsharp
+        control_layout.addRow("Amount (Unsharp):", self.amount_slider)
+        control_layout.addRow("Threshold:", self.threshold_slider)
+        control_layout.addRow(self.unsharp_button)
+        control_layout.addRow(self.highboost_button)
+
+        # Laplacian
+        control_layout.addRow("Laplacian Neighbors:", self.lap_neigh_slider)
+        control_layout.addRow(self.laplacian_button)
+
+        # Sobel
+        control_layout.addRow("Sobel Kernel Size:", self.sobel_ksize_slider)
+        control_layout.addRow(self.sobel_x_button)
+        control_layout.addRow(self.sobel_y_button)
+        control_layout.addRow(self.sobel_mag_button)
 
         control_box = QGroupBox("Tùy chọn xử lý ảnh")
         control_box.setLayout(control_layout)
@@ -199,6 +242,13 @@ class ImageApp(QWidget):
         self.gamma_slider.valueChanged.connect(lambda: setattr(self, 'use_auto_gamma', False))
         for slider in [self.r1_slider, self.s1_slider, self.r2_slider, self.s2_slider]:
             slider.valueChanged.connect(lambda: setattr(self, 'use_auto_piecewise', False))
+
+        self.unsharp_button.clicked.connect(self.apply_unsharp)
+        self.highboost_button.clicked.connect(self.apply_highboost)
+        self.laplacian_button.clicked.connect(self.apply_laplacian)
+        self.sobel_x_button.clicked.connect(self.apply_sobel_x)
+        self.sobel_y_button.clicked.connect(self.apply_sobel_y)
+        self.sobel_mag_button.clicked.connect(self.apply_sobel_magnitude)
 
     # --- Các phương thức Xử lý Ảnh ---
 
@@ -385,7 +435,82 @@ class ImageApp(QWidget):
             self.display_image(filtered_img_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
-            
+    def apply_unsharp(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            sigma = self.sigma_slider.value() / 10.0
+            amount = self.amount_slider.value() / 100.0
+            threshold = self.threshold_slider.value()
+
+            filtered = self.unsharp_processor.Filter(
+                image=self.original_gray,
+                kernel_size=kernel_size,
+                sigma=sigma,
+                amount=amount,
+                threshold=threshold
+            )
+            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_rgb)
+
+    def apply_highboost(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            sigma = self.sigma_slider.value() / 10.0
+            amount = self.amount_slider.value() / 100.0 + 1.0  # High-boost: amount > 1
+            threshold = 0
+
+            filtered = self.unsharp_processor.Filter(
+                image=self.original_gray,
+                kernel_size=kernel_size,
+                sigma=sigma,
+                amount=amount,
+                threshold=threshold
+            )
+            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_rgb)
+
+    def apply_laplacian(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            neigh_idx = self.lap_neigh_slider.value()
+            neigh_map = {0: 4, 1: 8, 2: 16, 3: kernel_size*kernel_size-1}
+            neighborhood = neigh_map[neigh_idx]
+
+            filtered = self.laplacian_processor.Filter(
+                image=self.original_gray,
+                kernel_size=kernel_size,
+                neighborhood=neighborhood,
+                padding=True
+            )
+            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_rgb)
+
+    def apply_sobel_x(self):
+        self._apply_sobel(dx=1, dy=0)
+
+    def apply_sobel_y(self):
+        self._apply_sobel(dx=0, dy=1)
+
+    def apply_sobel_magnitude(self):
+        self._apply_sobel(dx=1, dy=1)  # dùng cả 2 để tính magnitude
+
+    def _apply_sobel(self, dx, dy):
+        if self.original_gray is None:
+            return
+
+        ksize = self.sobel_ksize_slider.value()
+
+        if dx == 1 and dy == 1:  # Magnitude
+            gx = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_32F, 1, 0, ksize)
+            gy = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_32F, 0, 1, ksize)
+            mag = np.sqrt(gx**2 + gy**2)
+            mag = np.clip(mag, 0, 255).astype(np.uint8)
+            result = mag
+        else:
+            result = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_8U, dx, dy, ksize)
+
+        result_rgb = cv2.cvtColor(result, cv2.COLOR_GRAY2RGB)
+        self.display_image(result_rgb)
     # --- Các phương thức Utility ---
 
     def reset_log_slider(self):

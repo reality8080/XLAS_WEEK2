@@ -2,12 +2,8 @@ import cv2
 import numpy as np
 from Class.Calculator import Calculator
 class Gradien_Sobel:
-    def __init__(self, image:np.ndarray):
-        if len(image.shape) == 3:
-            # Giả định ảnh màu, chuyển về grayscale để tính Sobel
-            self.image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        else:
-            self.image = image
+    def __init__(self):
+        pass
 
     def binomial_coeffs(self,n):
         coeffs = [1]
@@ -21,7 +17,7 @@ class Gradien_Sobel:
         
         s_coeffs = self.binomial_coeffs(ksize-1)
         s_kernel = s_coeffs.reshape(-1, 1)
-        d_coeffs = np.arange(-ksize//2, ksize//2+1)
+        d_coeffs = np.arange(-(ksize//2), ksize//2+1)
         d_kernel = d_coeffs*s_coeffs
 
         if dx == 1 and dy == 0:
