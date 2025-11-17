@@ -14,6 +14,10 @@ from Week2_3.Gaussian import Gaussian
 from Week2_3.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
 from Week2_3.Laplacian import Laplacian
 from Week2_3.Gradien_Sobel import Gradien_Sobel
+from Week3.Ideal import Ideal
+from Week3.Butterworth import Butterworth
+from Week3.GaussianFreq import GaussianFreq
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -31,6 +35,9 @@ if __name__ == "__main__":
     unsharp = UnsharpMasking_HighBoost()
     laplacian = Laplacian()
     sobel = Gradien_Sobel()
+    ideal = Ideal()
+    butterworth = Butterworth()
+    gaussian_freq = GaussianFreq()
     
     window = ImageApp(
         negative_processor=negative, 
@@ -46,7 +53,10 @@ if __name__ == "__main__":
         gaussian_filter_processor=gaussian_filter_processor,
         unsharp_processor=unsharp,
         laplacian_processor=laplacian,
-        sobel_processor=sobel
+        sobel_processor=sobel,
+        ideal_processor=ideal,
+        butterworth_processor=butterworth,
+        gaussian_freq_processor=gaussian_freq
     )
     window.show()
     sys.exit(app.exec_())

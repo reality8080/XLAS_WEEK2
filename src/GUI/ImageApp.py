@@ -2,7 +2,7 @@
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog,
-    QHBoxLayout, QSlider, QGroupBox, QFormLayout
+    QHBoxLayout, QSlider, QGroupBox, QFormLayout, QComboBox
 )
 from PyQt5.QtGui import QPixmap, QImage
 from PyQt5.QtCore import Qt
@@ -28,6 +28,10 @@ from Week2_3.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
 from Week2_3.Laplacian import Laplacian
 from Week2_3.Gradien_Sobel import Gradien_Sobel
 
+from Week3.Ideal import Ideal
+from Week3.Butterworth import Butterworth
+from Week3.GaussianFreq import GaussianFreq
+
 class ImageApp(QWidget):
     def __init__(self, 
                  negative_processor: Negative, 
@@ -44,6 +48,9 @@ class ImageApp(QWidget):
                  unsharp_processor: UnsharpMasking_HighBoost,
                  laplacian_processor: Laplacian,
                  sobel_processor: Gradien_Sobel,
+                 ideal_processor: Ideal,
+                 butterworth_processor: Butterworth,
+                 gaussian_freq_processor: GaussianFreq
                  ):
         super().__init__()
         # === 1. Khởi tạo các Bộ xử lý ===
@@ -62,6 +69,10 @@ class ImageApp(QWidget):
         self.unsharp_processor = unsharp_processor
         self.laplacian_processor = laplacian_processor
         self.sobel_processor = sobel_processor
+
+        self.ideal_processor = ideal_processor
+        self.butterworth_processor = butterworth_processor
+        self.gaussian_freq_processor = gaussian_freq_processor
 
         # === 2. Trạng thái ảnh và chế độ tự động ===
         self.current_image_rgb = None
@@ -93,6 +104,8 @@ class ImageApp(QWidget):
 
         self.original_freq_canvas = FrequencyPlot(self)
         self.transformed_freq_canvas = FrequencyPlot(self)
+        freq_mode_combo = self.transformed_freq_canvas.get_mode_combo()
+        freq_mode_combo.setStyleSheet("color: white; background: #333; padding: 4px;")
         self.original_freq_canvas.setFixedHeight(200)
         self.transformed_freq_canvas.setFixedHeight(200)
 
@@ -101,11 +114,12 @@ class ImageApp(QWidget):
         original_group.addWidget(self.original_label)
         original_group.addWidget(self.original_hist_canvas)
         original_group.addWidget(self.original_freq_canvas)
-
+        
         transformed_group = QVBoxLayout()
         transformed_group.addWidget(self.transformed_label)
         transformed_group.addWidget(self.transformed_hist_canvas)
         transformed_group.addWidget(self.transformed_freq_canvas)
+        transformed_group.addWidget(freq_mode_combo, alignment=Qt.AlignCenter)
 
         images_layout = QHBoxLayout()
         images_layout.addLayout(original_group)
@@ -157,7 +171,7 @@ class ImageApp(QWidget):
         # === 3. Layout Điều khiển ===
         control_vbox = QVBoxLayout() # Vertical Box cho tất cả Group Boxes
 
-# --- A. Tải Ảnh & Cơ bản ---
+        # --- A. Tải Ảnh & Cơ bản ---
         load_group = QGroupBox("1. Tải Ảnh & Thao tác cơ bản")
         load_layout = QVBoxLayout()
         load_layout.addWidget(self.load_button)
@@ -257,6 +271,35 @@ class ImageApp(QWidget):
         scroll_area.setWidget(scroll_widget)
         scroll_area.setFixedWidth(800) # Đặt chiều rộng cố định cho khu vực điều khiển
         
+        # === Group Box cho Frequency Filters ===
+        frequency_group = QGroupBox("Frequency Domain Filters")
+        frequency_layout = QFormLayout()
+
+        self.freq_type_combo = QComboBox()
+        self.freq_type_combo.addItems(["Low-pass", "High-pass"])
+        frequency_layout.addRow("Type:", self.freq_type_combo)
+
+        self.freq_mode_combo = QComboBox()
+        self.freq_mode_combo.addItems(["Ideal", "Butterworth", "Gaussian"])
+        frequency_layout.addRow("Mode:", self.freq_mode_combo)
+
+        self.cutoff_slider = QSlider(Qt.Horizontal)
+        self.cutoff_slider.setRange(1, 100)
+        self.cutoff_slider.setValue(30)
+        frequency_layout.addRow("Cutoff (D0):", self.cutoff_slider)
+
+        self.order_slider = QSlider(Qt.Horizontal)
+        self.order_slider.setRange(1, 10)
+        self.order_slider.setValue(1)
+        self.order_slider.setVisible(False)
+        frequency_layout.addRow("Order (n - Butterworth):", self.order_slider)
+
+        self.apply_freq_button = QPushButton("Apply Frequency Filter")
+        frequency_layout.addWidget(self.apply_freq_button)
+
+        frequency_group.setLayout(frequency_layout)
+        control_vbox.addWidget(frequency_group)  # Thêm vào controls_layout chính
+
         # === 4. Layout Chính ===
         main_layout = QHBoxLayout()
         main_layout.addLayout(images_layout, stretch=1)
@@ -308,6 +351,10 @@ class ImageApp(QWidget):
         self.sobel_y_button.clicked.connect(self.apply_sobel_y)
         self.sobel_mag_button.clicked.connect(self.apply_sobel_magnitude)
 
+        self.freq_mode_combo.currentIndexChanged.connect(self.toggle_order_slider)
+        self.apply_freq_button.clicked.connect(self.apply_frequency_filter)
+        self.freq_mode_combo.currentIndexChanged.connect(self.toggle_order_slider)
+        self.apply_freq_button.clicked.connect(self.apply_frequency_filter)
     # --- Các phương thức Xử lý Ảnh ---
 
     def load_image(self):
@@ -568,6 +615,60 @@ class ImageApp(QWidget):
 
         result_rgb = cv2.cvtColor(result, cv2.COLOR_GRAY2RGB)
         self.display_image(result_rgb)
+
+        def toggle_order_slider(self):
+            """Ẩn/hiện slider order dựa trên mode"""
+            mode = self.freq_mode_combo.currentText()
+            self.order_slider.setVisible(mode == "Butterworth")
+
+        def apply_frequency_filter(self):
+            if self.original_gray is None:
+                print("Vui lòng tải ảnh trước.")
+                return
+
+            cutoff = self.cutoff_slider.value()
+            order = self.order_slider.value()
+            filter_type = "low" if self.freq_type_combo.currentText() == "Low-pass" else "high"
+            mode = self.freq_mode_combo.currentText()
+
+            if mode == "Ideal":
+                filtered = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
+            elif mode == "Butterworth":
+                filtered = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
+            elif mode == "Gaussian":
+                filtered = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
+            else:
+                return
+
+            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_rgb)
+
+    def toggle_order_slider(self):
+        """Ẩn/hiện slider order dựa trên mode"""
+        mode = self.freq_mode_combo.currentText()
+        self.order_slider.setVisible(mode == "Butterworth")
+
+    def apply_frequency_filter(self):
+        if self.original_gray is None:
+            print("Vui lòng tải ảnh trước.")
+            return
+
+        cutoff = self.cutoff_slider.value()
+        order = self.order_slider.value()
+        filter_type = "low" if self.freq_type_combo.currentText() == "Low-pass" else "high"
+        mode = self.freq_mode_combo.currentText()
+
+        if mode == "Ideal":
+            filtered = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
+        elif mode == "Butterworth":
+            filtered = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
+        elif mode == "Gaussian":
+            filtered = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
+        else:
+            return
+
+        filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
+        self.display_image(filtered_rgb)
     # --- Các phương thức Utility ---
 
     def reset_log_slider(self):
@@ -623,3 +724,5 @@ class ImageApp(QWidget):
         # Cập nhật phổ tần số
         freq_trans = self.transformed_freq_canvas.compute_magnitude_spectrum(gray)
         self.transformed_freq_canvas.plot_frequency(freq_trans, "DFT - Ảnh biến đổi")
+
+        

@@ -2,71 +2,125 @@
 import numpy as np
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from mpl_toolkits.mplot3d import Axes3D
+from PyQt5.QtWidgets import QComboBox
+from PyQt5.QtCore import Qt
 
 class FrequencyPlot(FigureCanvas):
     def __init__(self, parent=None):
-        self.fig = Figure(figsize=(4, 1.5), dpi=100)
-        self.ax = self.fig.add_subplot(111)
+        self.fig = Figure(figsize=(4, 3), dpi=100, facecolor='black')
         super().__init__(self.fig)
 
-        # Tùy chỉnh nền và màu chữ cho đẹp
-        self.ax.set_facecolor('black')
-        self.fig.patch.set_facecolor('white')
+        # Biến trạng thái
+        self.current_mode = '2D'  # '2D' hoặc '3D'
+        self.freq_data = None
 
-    def clear_plot(self):
+        # Combo box chọn chế độ (sẽ được parent thêm vào)
+        self.mode_combo = QComboBox()
+        self.mode_combo.addItems(["2D View", "3D Surface"])
+        self.mode_combo.setCurrentText("2D View")
+        self.mode_combo.currentTextChanged.connect(self.switch_mode)
+
+        # Ban đầu tạo trục 2D
+        self.ax = self.fig.add_subplot(111)
+        self._setup_2d_style()
+
+    # ====================== CÁC HÀM RIÊNG ======================
+    def _setup_2d_style(self):
         self.ax.clear()
         self.ax.set_facecolor('black')
-        self.draw()
+        self.fig.patch.set_facecolor('black')
 
+    def _setup_3d_style(self):
+        self.ax.clear()
+        self.ax = self.fig.add_subplot(111, projection='3d')
+        self.ax.set_facecolor('black')
+        self.ax.grid(False)
+        self.ax.xaxis.pane.fill = False
+        self.ax.yaxis.pane.fill = False
+        self.ax.zaxis.pane.fill = False
+        self.ax.xaxis.pane.set_edgecolor('gray')
+        self.ax.yaxis.pane.set_edgecolor('gray')
+        self.ax.zaxis.pane.set_edgecolor('gray')
+        self.ax.tick_params(colors='white', labelsize=7)
+        self.ax.xaxis.label.set_color('white')
+        self.ax.yaxis.label.set_color('white')
+        self.ax.zaxis.label.set_color('white')
+
+    # ====================== CHUYỂN ĐỔI CHẾ ĐỘ ======================
+    def switch_mode(self, text):
+        self.current_mode = '3D' if '3D' in text else '2D'
+        if self.freq_data is not None:
+            self.plot_frequency(self.freq_data)  # vẽ lại
+
+    def get_mode_combo(self):
+        """Trả về combo box để parent thêm vào layout"""
+        return self.mode_combo
+
+    # ====================== TÍNH DFT ======================
     def compute_magnitude_spectrum(self, image_gray):
-        """Tính phổ biên độ DFT 2D (log + shift)"""
         if image_gray is None or image_gray.size == 0:
             return None
-        f = np.fft.fft2(image_gray)
+        f = np.fft.fft2(image_gray.astype(np.float64))
         fshift = np.fft.fftshift(f)
         magnitude = np.abs(fshift)
-        # Log scale để thấy rõ tần số thấp
         magnitude_log = np.log(1 + magnitude)
         return magnitude_log
 
-    def plot_frequency(self, freq_data, title="DFT Magnitude", cmap='gray'):
-        """
-        Vẽ phổ tần số với:
-        - Tâm tại (0,0)
-        - Tỷ lệ chính xác (không méo)
-        - Dễ nhìn (có màu)
-        """
-        self.ax.clear()
-        self.ax.set_facecolor('black')
-
+    # ====================== VẼ CHUNG ======================
+    def plot_frequency(self, freq_data=None, title="Frequency Domain"):
+        self.freq_data = freq_data
         if freq_data is None:
+            self.ax.clear()
             self.ax.text(0.5, 0.5, 'No data', transform=self.ax.transAxes,
-                        ha='center', va='center', fontsize=10, color='white')
-        else:
-            h, w = freq_data.shape
-            cx, cy = w // 2, h // 2
+                        ha='center', va='center', color='white', fontsize=12)
+            self.draw()
+            return
 
-            im = self.ax.imshow(
+        h, w = freq_data.shape
+        cx, cy = w // 2, h // 2
+
+        if self.current_mode == '2D':
+            self.fig.clear()
+            self.ax = self.fig.add_subplot(111)  # tạo lại trục 2D
+            self._setup_2d_style()
+
+            self.ax.imshow(
                 freq_data,
-                cmap=cmap,                    # 'jet', 'hot', 'viridis', 'magma'
-                extent=[-cx, cx, -cy, cy],    # Tâm tại (0,0), đúng tỷ lệ
-                origin='lower',               # Quan trọng: tần số 0 ở giữa
+                cmap='turbo',           # đẹp hơn jet
+                extent=[-cx, cx, -cy, cy],
+                origin='lower',
                 interpolation='nearest'
             )
+            self.ax.set_title(title, color='cyan', fontsize=10)
+            self.ax.set_xlabel('u', color='white', fontsize=8)
+            self.ax.set_ylabel('v', color='white', fontsize=8)
+            self.ax.tick_params(colors='white')
 
-            # Tùy chọn: thêm colorbar nhỏ
-            # self.fig.colorbar(im, ax=self.ax, fraction=0.046, pad=0.04, shrink=0.8)
+        else:  # 3D
+            self.fig.clear()
+            self._setup_3d_style()
 
-        # Cấu hình trục
-        self.ax.set_title(title, fontsize=9, color='white', pad=10)
-        self.ax.set_xlabel('Frequency u', fontsize=8, color='white')
-        self.ax.set_ylabel('Frequency v', fontsize=8, color='white')
-        self.ax.tick_params(colors='white', labelsize=7)
+            # Downsample thông minh
+            step = max(1, min(w, h) // 180)
+            small = freq_data[::step, ::step]
+            hh, ww = small.shape
 
-        # Viền trắng cho đẹp
-        for spine in self.ax.spines.values():
-            spine.set_color('white')
+            x = np.linspace(-cx, cx, ww)
+            y = np.linspace(-cy, cy, hh)
+            X, Y = np.meshgrid(x, y)
 
-        # Thay tight_layout() bằng subplots_adjust để tránh lỗi Qt
-        self.fig.subplots_adjust(left=0.12, right=0.88, top=0.88, bottom=0.18)
+            surf = self.ax.plot_surface(
+                X, Y, small,
+                cmap='turbo',
+                linewidth=0,
+                antialiased=False,
+                alpha=0.98,
+                shade=True
+            )
+            self.ax.view_init(elev=50, azim=45)
+            self.ax.set_zlim(0, small.max() * 1.1)
+            self.ax.set_title(title, color='cyan', fontsize=10, pad=20)
+
+        self.fig.subplots_adjust(left=0, right=1, top=0.95, bottom=0)
         self.draw()
