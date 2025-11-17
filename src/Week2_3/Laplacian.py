@@ -1,5 +1,5 @@
 import numpy as np
-from Class.Calculator import Calculator
+from Week2_3.Calculator import Calculator
 import cv2
 
 class Laplacian:

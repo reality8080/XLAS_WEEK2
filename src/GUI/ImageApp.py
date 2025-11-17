@@ -11,21 +11,22 @@ import numpy as np
 
 # Giả định HistogramPlot là một class riêng, cần được import
 from .histogram_plot import HistogramPlot 
+from .FrequencyPlot import FrequencyPlot
 
-# Giả định các class xử lý ảnh đã được định nghĩa trong thư mục Class/
-from Class.Negative import Negative
-from Class.Histogram import Histogram
-from Class.Log_Transform import Log_Transform
-from Class.Gamma import Gamma
-from Class.Piecewise_Linear_Transform import Piecewise_Linear_Transform
-from Class.Box_Filter import Box_Filter
-from Class.Meadian_Filter import Meadian_Filter # Lỗi chính tả trong tên file
-from Class.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
-from Class.Gaussian import Gaussian
+# Giả định các class xử lý ảnh đã được định nghĩa trong thư mục Week2_3/
+from Week2_3.Negative import Negative
+from Week2_3.Histogram import Histogram
+from Week2_3.Log_Transform import Log_Transform
+from Week2_3.Gamma import Gamma
+from Week2_3.Piecewise_Linear_Transform import Piecewise_Linear_Transform
+from Week2_3.Box_Filter import Box_Filter
+from Week2_3.Meadian_Filter import Meadian_Filter # Lỗi chính tả trong tên file
+from Week2_3.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
+from Week2_3.Gaussian import Gaussian
 
-from Class.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
-from Class.Laplacian import Laplacian
-from Class.Gradien_Sobel import Gradien_Sobel
+from Week2_3.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
+from Week2_3.Laplacian import Laplacian
+from Week2_3.Gradien_Sobel import Gradien_Sobel
 
 class ImageApp(QWidget):
     def __init__(self, 
@@ -90,14 +91,21 @@ class ImageApp(QWidget):
         self.original_hist_canvas.setFixedHeight(200)
         self.transformed_hist_canvas.setFixedHeight(200)
 
+        self.original_freq_canvas = FrequencyPlot(self)
+        self.transformed_freq_canvas = FrequencyPlot(self)
+        self.original_freq_canvas.setFixedHeight(200)
+        self.transformed_freq_canvas.setFixedHeight(200)
+
         # === 1. Layout Hiển thị Ảnh và Histogram ===
         original_group = QVBoxLayout()
         original_group.addWidget(self.original_label)
         original_group.addWidget(self.original_hist_canvas)
+        original_group.addWidget(self.original_freq_canvas)
 
         transformed_group = QVBoxLayout()
         transformed_group.addWidget(self.transformed_label)
         transformed_group.addWidget(self.transformed_hist_canvas)
+        transformed_group.addWidget(self.transformed_freq_canvas)
 
         images_layout = QHBoxLayout()
         images_layout.addLayout(original_group)
@@ -147,62 +155,112 @@ class ImageApp(QWidget):
         self.sobel_mag_button = QPushButton("Sobel Magnitude")
         self.sobel_ksize_slider = self._create_slider(3, 15, 3, 2, True)  # chỉ số lẻ
         # === 3. Layout Điều khiển ===
-        control_layout = QFormLayout()
-        
-        control_layout.addRow(self.load_button)
-        control_layout.addRow(self.negative_button)
-        control_layout.addRow(self.log_button)
-        control_layout.addRow(self.hist_equal_button)
-        
-        control_layout.addRow("Giá trị c (Log):", self.slider)
-        control_layout.addRow(self.reset_log_button)
+        control_vbox = QVBoxLayout() # Vertical Box cho tất cả Group Boxes
 
-        control_layout.addRow("Giá trị gamma:", self.gamma_slider)
-        control_layout.addRow(self.gamma_button)
-        control_layout.addRow(self.reset_gamma_button)
-        
-        control_layout.addRow("r1:", self.r1_slider)
-        control_layout.addRow("s1:", self.s1_slider)
-        control_layout.addRow("r2:", self.r2_slider)
-        control_layout.addRow("s2:", self.s2_slider)
-        control_layout.addRow(self.piecewise_button)
-        control_layout.addRow(self.reset_piecewise_button)
+# --- A. Tải Ảnh & Cơ bản ---
+        load_group = QGroupBox("1. Tải Ảnh & Thao tác cơ bản")
+        load_layout = QVBoxLayout()
+        load_layout.addWidget(self.load_button)
+        load_layout.addWidget(self.negative_button)
+        load_layout.addWidget(self.hist_equal_button)
+        load_group.setLayout(load_layout)
+        control_vbox.addWidget(load_group)
 
-        control_layout.addRow("Kích thước Kernel:", self.kernel_slider)
-        control_layout.addRow(self.box_filter_button)
+        # --- B. Biến đổi Độ sáng (Log, Gamma, Piecewise) ---
+        intensity_group = QGroupBox("2. Biến đổi Độ sáng (Intensity)")
+        intensity_layout = QFormLayout()
 
-        control_layout.addRow(self.median_filter_button)
-        control_layout.addRow(self.max_filter_button)
-        control_layout.addRow(self.min_filter_button)
-        control_layout.addRow(self.mid_filter_button)
-        
-        control_layout.addRow("Sigma (Gaussian):", self.sigma_slider)
-        control_layout.addRow(self.gaussian_filter_button)
+        # --- Log Transform ---
+        intensity_layout.addRow(self.log_button)
+        intensity_layout.addRow("Giá trị c (Log):", self.slider)
+        intensity_layout.addRow(self.reset_log_button)
+        intensity_layout.addRow(QLabel("")) # Spacer
 
-        # Unsharp
-        control_layout.addRow("Amount (Unsharp):", self.amount_slider)
-        control_layout.addRow("Threshold:", self.threshold_slider)
-        control_layout.addRow(self.unsharp_button)
-        control_layout.addRow(self.highboost_button)
+        # --- Gamma Transform ---
+        intensity_layout.addRow(self.gamma_button)
+        intensity_layout.addRow("Giá trị gamma:", self.gamma_slider)
+        intensity_layout.addRow(self.reset_gamma_button)
+        intensity_layout.addRow(QLabel("")) # Spacer
 
-        # Laplacian
-        control_layout.addRow("Laplacian Neighbors:", self.lap_neigh_slider)
-        control_layout.addRow(self.laplacian_button)
+        # --- Piecewise Linear Transform ---
+        intensity_layout.addRow(self.piecewise_button)
+        intensity_layout.addRow("r1:", self.r1_slider)
+        intensity_layout.addRow("s1:", self.s1_slider)
+        intensity_layout.addRow("r2:", self.r2_slider)
+        intensity_layout.addRow("s2:", self.s2_slider)
+        intensity_layout.addRow(self.reset_piecewise_button)
 
-        # Sobel
-        control_layout.addRow("Sobel Kernel Size:", self.sobel_ksize_slider)
-        control_layout.addRow(self.sobel_x_button)
-        control_layout.addRow(self.sobel_y_button)
-        control_layout.addRow(self.sobel_mag_button)
+        intensity_group.setLayout(intensity_layout)
+        control_vbox.addWidget(intensity_group)
 
-        control_box = QGroupBox("Tùy chọn xử lý ảnh")
-        control_box.setLayout(control_layout)
-        control_box.setFixedWidth(350)
+        # --- C. Lọc Không gian: Làm mờ & Giảm nhiễu (Smoothing) ---
+        smoothing_group = QGroupBox("3. Lọc Giảm nhiễu (Smoothing)")
+        smoothing_layout = QFormLayout()
+
+        # Kernel Size Slider (dùng chung cho Box, Median, Max, Min, Mid, Gaussian)
+        smoothing_layout.addRow("Kích thước Kernel lẻ:", self.kernel_slider)
+
+        # Box Filter
+        smoothing_layout.addRow(self.box_filter_button)
+
+        # Gaussian Filter (Có thêm Sigma)
+        smoothing_layout.addRow(self.gaussian_filter_button)
+        smoothing_layout.addRow("Sigma (Gaussian):", self.sigma_slider)
+
+        # Order-Statistic Filters (Dùng QHBoxLayout để gom 4 nút lại 1 hàng)
+        order_layout = QHBoxLayout()
+        order_layout.addWidget(self.median_filter_button)
+        order_layout.addWidget(self.max_filter_button)
+        order_layout.addWidget(self.min_filter_button)
+        order_layout.addWidget(self.mid_filter_button)
+        smoothing_layout.addRow("Lọc thống kê (Median/Max/Min/Mid):", order_layout)
+
+        smoothing_group.setLayout(smoothing_layout)
+        control_vbox.addWidget(smoothing_group)
+
+
+        # --- D. Lọc Không gian: Làm sắc nét & Phát hiện cạnh (Sharpening/Edge) ---
+        sharpen_group = QGroupBox("4. Lọc Sắc nét & Phát hiện cạnh")
+        sharpen_layout = QFormLayout()
+
+        # --- Unsharp Masking / High Boost ---
+        sharpen_layout.addRow(self.unsharp_button)
+        sharpen_layout.addRow(self.highboost_button)
+        sharpen_layout.addRow("Amount:", self.amount_slider)
+        sharpen_layout.addRow("Threshold:", self.threshold_slider)
+        sharpen_layout.addRow(QLabel("")) # Spacer
+
+        # --- Laplacian ---
+        sharpen_layout.addRow(self.laplacian_button)
+        sharpen_layout.addRow("Laplacian Neighbors:", self.lap_neigh_slider)
+        sharpen_layout.addRow(QLabel("")) # Spacer
+
+        # --- Sobel ---
+        sharpen_layout.addRow("Sobel Kernel Size:", self.sobel_ksize_slider)
+        sobel_h_layout = QHBoxLayout()
+        sobel_h_layout.addWidget(self.sobel_x_button)
+        sobel_h_layout.addWidget(self.sobel_y_button)
+        sobel_h_layout.addWidget(self.sobel_mag_button)
+        sharpen_layout.addRow("Sobel (X/Y/Mag):", sobel_h_layout)
+
+        sharpen_group.setLayout(sharpen_layout)
+        control_vbox.addWidget(sharpen_group)
+
+        # --- Bọc tất cả Group Box vào QWidget có Scroll Bar (Đề xuất) ---
+        # Do số lượng điều khiển nhiều, nên bọc lại để đảm bảo màn hình nhỏ vẫn cuộn được.
+        scroll_widget = QWidget()
+        scroll_widget.setLayout(control_vbox)
+
+        from PyQt5.QtWidgets import QScrollArea
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setWidget(scroll_widget)
+        scroll_area.setFixedWidth(800) # Đặt chiều rộng cố định cho khu vực điều khiển
         
         # === 4. Layout Chính ===
         main_layout = QHBoxLayout()
         main_layout.addLayout(images_layout, stretch=1)
-        main_layout.addWidget(control_box)
+        main_layout.addWidget(scroll_area) # Thay thế control_box bằng scroll_area
         self.setLayout(main_layout)
 
     def _create_slider(self, min_val, max_val, default_val, interval, is_odd_step=False):
@@ -264,23 +322,22 @@ class ImageApp(QWidget):
             return
 
         self.current_image_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
-        
-        # Tạo ảnh xám gốc để dùng cho các bộ lọc 2D
-        self.original_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY) 
+        self.original_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
 
         pixmap = QPixmap(file_name).scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        
         self.original_label.setPixmap(pixmap)
         self.transformed_label.setPixmap(pixmap)
 
-        # CẬP NHẬT HISTOGRAM GỐC
-        _, self.original_hist = self.histogram_processor.normalized_Histogram(
-            self.current_image_rgb
-        )
+        # Cập nhật histogram gốc
+        _, self.original_hist = self.histogram_processor.normalized_Histogram(self.current_image_rgb)
         self.original_hist_canvas.plot_histogram(self.original_hist, "Histogram - Ảnh gốc")
 
-        # CẬP NHẬT HISTOGRAM BIẾN ĐỔI (ban đầu giống gốc)
-        self.update_transformed_histogram(self.current_image_rgb)
+        # Cập nhật frequency gốc
+        freq_orig = self.original_freq_canvas.compute_magnitude_spectrum(self.original_gray)
+        self.original_freq_canvas.plot_frequency(freq_orig, "DFT - Ảnh gốc")
+
+        # Ban đầu: ảnh biến đổi = ảnh gốc
+        self.display_image(self.current_image_rgb)
 
     def apply_negative(self):
         if hasattr(self, 'current_image_rgb') and self.current_image_rgb is not None:
@@ -521,24 +578,48 @@ class ImageApp(QWidget):
         self.use_auto_piecewise = True
 
     def display_image(self, img_array):
-        """Hiển thị ảnh và cập nhật histogram."""
+        """Chỉ hiển thị ảnh và cập nhật histogram + frequency (qua hàm riêng)"""
         if img_array is None:
             return
 
         h, w = img_array.shape[:2]
-        bytes_per_line = 3 * w
-        
-        # Đảm bảo dữ liệu là 8-bit unsigned integer (uchar)
+
+        # Chuẩn hóa dữ liệu
         if img_array.dtype != np.uint8:
-            img_array = img_array.astype(np.uint8)
-            
+            img_array = np.clip(img_array, 0, 255).astype(np.uint8)
+
+        # Chuyển grayscale → RGB nếu cần
+        if len(img_array.shape) == 2:
+            img_array = cv2.cvtColor(img_array, cv2.COLOR_GRAY2RGB)
+            bytes_per_line = 3 * w
+        else:
+            bytes_per_line = 3 * w
+
+        # Hiển thị ảnh
         qt_img = QImage(img_array.data, w, h, bytes_per_line, QImage.Format_RGB888)
         pixmap = QPixmap.fromImage(qt_img).scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.transformed_label.setPixmap(pixmap)
 
-        # CẬP NHẬT HISTOGRAM SAU BIẾN ĐỔI
+        # Cập nhật histogram
         self.update_transformed_histogram(img_array)
+
+        # Cập nhật frequency (DFT) - KHÔNG gọi display_image
+        self.update_transformed_display(img_array)  # ← an toàn, không lặp
 
     def update_transformed_histogram(self, img_array):
         _, hist_norm = self.histogram_processor.normalized_Histogram(img_array)
         self.transformed_hist_canvas.plot_histogram(hist_norm, "Histogram - Ảnh biến đổi")
+    def update_transformed_display(self, img_array):
+        """Chỉ cập nhật Frequency Plot (DFT), KHÔNG gọi display_image"""
+        if img_array is None:
+            return
+
+        # Chuyển về ảnh xám
+        if len(img_array.shape) == 3:
+            gray = cv2.cvtColor(img_array, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_array
+
+        # Cập nhật phổ tần số
+        freq_trans = self.transformed_freq_canvas.compute_magnitude_spectrum(gray)
+        self.transformed_freq_canvas.plot_frequency(freq_trans, "DFT - Ảnh biến đổi")

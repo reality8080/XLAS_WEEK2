@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from Class.Calculator import Calculator
+from Week2_3.Calculator import Calculator
 class Gradien_Sobel:
     def __init__(self):
         pass

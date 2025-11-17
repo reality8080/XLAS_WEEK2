@@ -1,19 +1,19 @@
-from Class.Negative import Negative
-from Class.Log_Transform import Log_Transform
-from Class.Gamma import Gamma
+from Week2_3.Negative import Negative
+from Week2_3.Log_Transform import Log_Transform
+from Week2_3.Gamma import Gamma
 # from Utils.ImageApp import ImageApp
 from GUI.ImageApp import ImageApp
 from PyQt5.QtWidgets import QApplication
-from Class.Piecewise_Linear_Transform import Piecewise_Linear_Transform
-from Class.Histogram import Histogram
-from Class.Box_Filter import Box_Filter
+from Week2_3.Piecewise_Linear_Transform import Piecewise_Linear_Transform
+from Week2_3.Histogram import Histogram
+from Week2_3.Box_Filter import Box_Filter
 import sys
-from Class.Meadian_Filter import Meadian_Filter
-from Class.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
-from Class.Gaussian import Gaussian
-from Class.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
-from Class.Laplacian import Laplacian
-from Class.Gradien_Sobel import Gradien_Sobel
+from Week2_3.Meadian_Filter import Meadian_Filter
+from Week2_3.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
+from Week2_3.Gaussian import Gaussian
+from Week2_3.UnsharpMasking_HighBoost import UnsharpMasking_HighBoost
+from Week2_3.Laplacian import Laplacian
+from Week2_3.Gradien_Sobel import Gradien_Sobel
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

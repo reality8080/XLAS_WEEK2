@@ -1,4 +1,4 @@
-from Class.Calculator import Calculator
+from Week2_3.Calculator import Calculator
 import numpy as np
 
 class Gaussian:
