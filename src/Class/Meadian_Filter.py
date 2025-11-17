@@ -21,7 +21,7 @@ class Meadian_Filter:
         B = np.zeros((h_image-kernel_size+1,w_image-kernel_size+1),dtype=np.float32)
 
         for i in range(0,h_image-kernel_size+1):
-            for j in range(0,w_image+kernel_size+1):
+            for j in range(0,w_image-kernel_size+1):
                 s_A = image[i:i+kernel_size, j:j+kernel_size]
                 B[i,j] = np.median(s_A)
 

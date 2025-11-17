@@ -19,7 +19,9 @@ from Class.Log_Transform import Log_Transform
 from Class.Gamma import Gamma
 from Class.Piecewise_Linear_Transform import Piecewise_Linear_Transform
 from Class.Box_Filter import Box_Filter
-
+from Class.Meadian_Filter import Meadian_Filter # Lỗi chính tả trong tên file
+from Class.Max_Min_Filter import Max_Filter, Min_Filter, Mid_Filter
+from Class.Gaussian import Gaussian
 
 class ImageApp(QWidget):
     def __init__(self, 
@@ -28,7 +30,12 @@ class ImageApp(QWidget):
                  gamma_processor: Gamma, 
                  piecewise_processor:Piecewise_Linear_Transform, 
                  histogram_processor: Histogram,
-                 box_filter_processor:Box_Filter
+                 box_filter_processor:Box_Filter,
+                 median_filter_processor: Meadian_Filter,
+                 max_filter_processor: Max_Filter,
+                 min_filter_processor: Min_Filter,
+                 mid_filter_processor: Mid_Filter,
+                 gaussian_filter_processor: Gaussian
                  ):
         super().__init__()
         # === 1. Khởi tạo các Bộ xử lý ===
@@ -38,6 +45,11 @@ class ImageApp(QWidget):
         self.piecewise_processor = piecewise_processor
         self.histogram_processor = histogram_processor
         self.box_filter_processor = box_filter_processor
+        self.median_filter_processor = median_filter_processor
+        self.max_filter_processor = max_filter_processor
+        self.min_filter_processor = min_filter_processor
+        self.mid_filter_processor = mid_filter_processor
+        self.gaussian_filter_processor = gaussian_filter_processor
 
         # === 2. Trạng thái ảnh và chế độ tự động ===
         self.current_image_rgb = None
@@ -91,12 +103,17 @@ class ImageApp(QWidget):
         self.reset_piecewise_button = QPushButton("Reset đoạn tuyến tính")
         self.hist_equal_button = QPushButton("Cân bằng Histogram (HE)")
         self.box_filter_button = QPushButton("Áp dụng Box Filter")
-
+        self.median_filter_button = QPushButton("Áp dụng Median Filter")
+        self.max_filter_button = QPushButton("Áp dụng Max Filter")
+        self.min_filter_button = QPushButton("Áp dụng Min Filter")
+        self.mid_filter_button = QPushButton("Áp dụng Mid Filter")
+        self.gaussian_filter_button = QPushButton("Áp dụng Gaussian Filter")
         # Khởi tạo Sliders (dùng hàm helper để giảm lặp)
         self.slider = self._create_slider(1, 255, 50, 5) # Log C
         self.gamma_slider = self._create_slider(10, 250, 100, 10) # Gamma (0.1 đến 2.5)
         self.kernel_slider = self._create_slider(3, 15, 3, 2, True) # Box Filter Kernel (chỉ số lẻ)
-        
+        self.sigma_slider = self._create_slider(10, 50, 10, 1) # Sigma (0.1 đến 5.0)
+
         self.r1_slider = self._create_slider(0, 255, 70, 1) # Piecewise
         self.s1_slider = self._create_slider(0, 255, 0, 1)
         self.r2_slider = self._create_slider(0, 255, 140, 1)
@@ -126,6 +143,14 @@ class ImageApp(QWidget):
 
         control_layout.addRow("Kích thước Kernel:", self.kernel_slider)
         control_layout.addRow(self.box_filter_button)
+
+        control_layout.addRow(self.median_filter_button)
+        control_layout.addRow(self.max_filter_button)
+        control_layout.addRow(self.min_filter_button)
+        control_layout.addRow(self.mid_filter_button)
+        
+        control_layout.addRow("Sigma (Gaussian):", self.sigma_slider)
+        control_layout.addRow(self.gaussian_filter_button)
 
         control_box = QGroupBox("Tùy chọn xử lý ảnh")
         control_box.setLayout(control_layout)
@@ -158,6 +183,12 @@ class ImageApp(QWidget):
         self.piecewise_button.clicked.connect(self.apply_piecewise_transform)
         self.box_filter_button.clicked.connect(self.apply_box_filter)
         self.hist_equal_button.clicked.connect(self.apply_histogram_equalization)
+
+        self.median_filter_button.clicked.connect(self.apply_median_filter)
+        self.max_filter_button.clicked.connect(self.apply_max_filter)
+        self.min_filter_button.clicked.connect(self.apply_min_filter)
+        self.mid_filter_button.clicked.connect(self.apply_mid_filter)
+        self.gaussian_filter_button.clicked.connect(self.apply_gaussian_filter)
 
         self.reset_log_button.clicked.connect(self.reset_log_slider)
         self.reset_gamma_button.clicked.connect(self.reset_gamma_slider)
@@ -276,6 +307,85 @@ class ImageApp(QWidget):
             
             self.display_image(filtered_img_rgb)
         
+    def apply_median_filter(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            
+            filtered_gray = self.median_filter_processor.Filter(
+                image=self.original_gray, 
+                kernel_size=kernel_size, 
+                padding=True
+            )
+            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_img_rgb)
+        else:
+            print("Vui lòng tải ảnh trước.")
+
+    # THÊM PHƯƠNG THỨC CHO MAX FILTER
+    def apply_max_filter(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            
+            filtered_gray = self.max_filter_processor.Filter(
+                image=self.original_gray.copy(), # Dùng .copy() để tránh thay đổi ảnh gốc
+                kernel_size=kernel_size, 
+                padding=True
+            )
+            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_img_rgb)
+        else:
+            print("Vui lòng tải ảnh trước.")
+
+    # THÊM PHƯƠNG THỨC CHO MIN FILTER
+    def apply_min_filter(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            
+            filtered_gray = self.min_filter_processor.Filter(
+                image=self.original_gray.copy(), # Dùng .copy() để tránh thay đổi ảnh gốc
+                kernel_size=kernel_size, 
+                padding=True
+            )
+            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_img_rgb)
+        else:
+            print("Vui lòng tải ảnh trước.")
+            
+    # THÊM PHƯƠNG THỨC CHO MIDPOINT FILTER
+    def apply_mid_filter(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            
+            filtered_gray = self.mid_filter_processor.Filter(
+                image=self.original_gray.copy(), # Dùng .copy() để tránh thay đổi ảnh gốc
+                kernel_size=kernel_size, 
+                padding=True
+            )
+            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
+            self.display_image(filtered_img_rgb)
+        else:
+            print("Vui lòng tải ảnh trước.")
+
+    # THÊM PHƯƠNG THỨC CHO GAUSSIAN FILTER
+    def apply_gaussian_filter(self):
+        if self.original_gray is not None:
+            kernel_size = self.kernel_slider.value()
+            # Lấy giá trị sigma (0.1 đến 5.0)
+            sigma_value = self.sigma_slider.value() / 10.0
+            
+            filtered_gray = self.gaussian_filter_processor.filter(
+                img=self.original_gray, 
+                kernel_size=kernel_size, 
+                sigma=sigma_value,
+                padding=True
+            )
+
+            filtered_img_rgb = cv2.cvtColor(filtered_gray.astype(np.uint8), cv2.COLOR_GRAY2RGB)
+            
+            self.display_image(filtered_img_rgb)
+        else:
+            print("Vui lòng tải ảnh trước.")
+            
     # --- Các phương thức Utility ---
 
     def reset_log_slider(self):
