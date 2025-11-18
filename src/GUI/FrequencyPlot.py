@@ -17,7 +17,7 @@ class FrequencyPlot(FigureCanvas):
 
         # Combo box chọn chế độ (sẽ được parent thêm vào)
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["2D View", "3D Surface"])
+        self.mode_combo.addItems(["2D View", "3D Surface","Vertical Cross-Section"])
         self.mode_combo.setCurrentText("2D View")
         self.mode_combo.currentTextChanged.connect(self.switch_mode)
 
@@ -49,9 +49,15 @@ class FrequencyPlot(FigureCanvas):
 
     # ====================== CHUYỂN ĐỔI CHẾ ĐỘ ======================
     def switch_mode(self, text):
-        self.current_mode = '3D' if '3D' in text else '2D'
+        if '3D' in text:
+            self.current_mode = '3D'
+        elif 'Cross-Section' in text: # ĐÃ THÊM LOGIC XỬ LÝ
+            self.current_mode = 'CROSS_SECTION'
+        else:
+            self.current_mode = '2D'
+
         if self.freq_data is not None:
-            self.plot_frequency(self.freq_data)  # vẽ lại
+            self.plot_frequency(self.freq_data)
 
     def get_mode_combo(self):
         """Trả về combo box để parent thêm vào layout"""
@@ -96,7 +102,8 @@ class FrequencyPlot(FigureCanvas):
             self.ax.set_xlabel('u', color='white', fontsize=8)
             self.ax.set_ylabel('v', color='white', fontsize=8)
             self.ax.tick_params(colors='white')
-
+        elif self.current_mode == 'CROSS_SECTION': # ĐÃ THÊM: Chế độ lát cắt
+            self._plot_cross_section(freq_data)
         else:  # 3D
             self.fig.clear()
             self._setup_3d_style()
@@ -124,3 +131,34 @@ class FrequencyPlot(FigureCanvas):
 
         self.fig.subplots_adjust(left=0, right=1, top=0.95, bottom=0)
         self.draw()
+    # ====================== CÁC HÀM RIÊNG ======================
+    # ... (các hàm _setup_2d_style và _setup_3d_style giữ nguyên)
+
+    def _plot_cross_section(self, freq_data, title="Vertical Cross-Section"):
+        self.fig.clear()
+        self.ax = self.fig.add_subplot(111) # Tạo lại trục 2D
+        self._setup_2d_style()
+
+        h, w = freq_data.shape
+        cy = h // 2  # Chỉ lấy lát cắt ngang qua tâm (trục v = 0)
+        cx = w // 2
+
+        # Lấy lát cắt dọc (theo chiều ngang) qua tâm hàng giữa (v=0)
+        # Sẽ hiển thị biên độ theo u (tần số ngang)
+        cross_section_data = freq_data[cy, :]
+
+        # Tạo trục hoành tương ứng với tần số u
+        u_axis = np.linspace(-cx, cx, w)
+
+        self.ax.plot(u_axis, cross_section_data, color='lime', linewidth=2)
+
+        self.ax.set_title(title, color='cyan', fontsize=10)
+        self.ax.set_xlabel('u (Horizontal Frequency)', color='white', fontsize=8)
+        self.ax.set_ylabel('Magnitude (Log-Scale)', color='white', fontsize=8)
+        self.ax.tick_params(colors='white')
+        self.ax.grid(axis='y', linestyle='--', alpha=0.5, color='gray')
+        self.ax.axvline(x=0, color='red', linestyle=':', linewidth=1) # Đánh dấu tâm (tần số 0)
+
+        # Điều chỉnh lại khoảng nhìn
+        self.ax.set_xlim(u_axis.min(), u_axis.max())
+        self.ax.set_ylim(0, cross_section_data.max() * 1.1)

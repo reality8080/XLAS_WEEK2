@@ -1,11 +1,17 @@
 # gui/image_app_gui.py
+import time
+from concurrent.futures import ThreadPoolExecutor
+import time
+
+from Week2_3.Calculator import Calculator
 
 from PyQt5.QtWidgets import (
     QWidget, QLabel, QPushButton, QVBoxLayout, QFileDialog,
-    QHBoxLayout, QSlider, QGroupBox, QFormLayout, QComboBox
+    QHBoxLayout, QSlider, QGroupBox, QFormLayout, QComboBox,
+    QTextEdit
 )
 from PyQt5.QtGui import QPixmap, QImage
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QMetaObject, Q_ARG
 import cv2
 import numpy as np
 
@@ -74,12 +80,17 @@ class ImageApp(QWidget):
         self.butterworth_processor = butterworth_processor
         self.gaussian_freq_processor = gaussian_freq_processor
 
+        self.executor = ThreadPoolExecutor(max_workers=4)
+        self.timing_results = ""
+
         # === 2. Trạng thái ảnh và chế độ tự động ===
         self.current_image_rgb = None
         self.original_gray = None
         self.use_auto_piecewise = True
         self.use_auto_log = True
         self.use_auto_gamma = True
+
+
 
         # === 3. Cài đặt Giao diện ===
         self.setWindowTitle("Bộ hiển thị ảnh số")
@@ -104,8 +115,13 @@ class ImageApp(QWidget):
 
         self.original_freq_canvas = FrequencyPlot(self)
         self.transformed_freq_canvas = FrequencyPlot(self)
+        orig_freq_combo = self.original_freq_canvas.get_mode_combo()
         freq_mode_combo = self.transformed_freq_canvas.get_mode_combo()
-        freq_mode_combo.setStyleSheet("color: white; background: #333; padding: 4px;")
+        
+        style = "color: white; background: #333; padding: 5px; border-radius: 4px;"
+        orig_freq_combo.setStyleSheet(style)
+        freq_mode_combo.setStyleSheet(style)
+
         self.original_freq_canvas.setFixedHeight(200)
         self.transformed_freq_canvas.setFixedHeight(200)
 
@@ -114,6 +130,7 @@ class ImageApp(QWidget):
         original_group.addWidget(self.original_label)
         original_group.addWidget(self.original_hist_canvas)
         original_group.addWidget(self.original_freq_canvas)
+        original_group.addWidget(orig_freq_combo, alignment=Qt.AlignCenter)
         
         transformed_group = QVBoxLayout()
         transformed_group.addWidget(self.transformed_label)
@@ -299,6 +316,22 @@ class ImageApp(QWidget):
 
         frequency_group.setLayout(frequency_layout)
         control_vbox.addWidget(frequency_group)  # Thêm vào controls_layout chính
+
+        self.timing_text = QTextEdit()
+        self.timing_text.setReadOnly(True)
+        self.timing_text.setFixedHeight(180)
+        self.timing_text.setStyleSheet("""
+            QTextEdit {
+                font-family: Consolas;
+                font-size: 11pt;
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border: none;
+                padding: 10px;
+            }
+        """)
+        frequency_layout.addWidget(QLabel("<b>⏱ So sánh tốc độ Frequency vs Spatial Domain (chạy tự động):</b>"))
+        frequency_layout.addWidget(self.timing_text)
 
         # === 4. Layout Chính ===
         main_layout = QHBoxLayout()
@@ -650,7 +683,6 @@ class ImageApp(QWidget):
 
     def apply_frequency_filter(self):
         if self.original_gray is None:
-            print("Vui lòng tải ảnh trước.")
             return
 
         cutoff = self.cutoff_slider.value()
@@ -658,17 +690,131 @@ class ImageApp(QWidget):
         filter_type = "low" if self.freq_type_combo.currentText() == "Low-pass" else "high"
         mode = self.freq_mode_combo.currentText()
 
-        if mode == "Ideal":
-            filtered = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
-        elif mode == "Butterworth":
-            filtered = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
-        elif mode == "Gaussian":
-            filtered = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
-        else:
-            return
+        # BẮT ĐẦU ĐO THỜI GIAN THỰC TẾ CỦA HÀM FILTER
+        real_start = time.perf_counter()
 
+        if mode == "Ideal":
+            filtered, freq_steps = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
+        elif mode == "Butterworth":
+            filtered, freq_steps = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
+        elif mode == "Gaussian":
+            filtered, freq_steps = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
+
+        real_total = time.perf_counter() - real_start   # ← Đây mới là số bạn cần!
+        # KẾT THÚC ĐO
+
+        # Hiển thị ảnh (cái này không tính vào thời gian nữa)
         filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
         self.display_image(filtered_rgb)
+
+        # Gửi đúng thời gian thực tế vào phần so sánh
+        self.executor.submit(lambda: self.run_domain_comparison(
+            freq_mode=mode,
+            freq_type=filter_type,
+            cutoff=cutoff,
+            order=order,
+            freq_total=real_total,      # ← Dùng real_total
+            freq_steps=freq_steps
+        ))
+    
+    def run_domain_comparison(self, freq_mode, freq_type, cutoff, order, freq_total, freq_steps):
+        img = self.original_gray
+        results = []
+
+        # === PHẦN 1: Frequency Domain (đã có) ===
+        results.append(f"<b>{freq_mode} {freq_type.upper()}PASS FILTER</b>")
+        results.append("<font color='#ff79c6'>Frequency Domain - 6 bước (chỉ tính thuật toán)</font>")
+        results.append(f"Tổng thời gian thực tế: <b>{freq_total*1000:.2f} ms</b>")
+        results.append("")
+        for step, t in freq_steps.items():
+            results.append(f"   • {step}: {t*1000:.3f} ms")
+        results.append("─" * 45)
+
+        # === PHẦN 2: Spatial Domain - Đo từng bước chi tiết ===
+        if freq_type == "low":
+            # ---- Gaussian Blur Spatial (3 bước rõ ràng) ----
+            sigma = max(0.3, cutoff / 10.0)
+            kernel_size = int(8 * sigma + 1)
+            if kernel_size % 2 == 0: kernel_size += 1
+            kernel_size = max(3, min(kernel_size, 51))  # giới hạn hợp lý
+
+            t0 = time.perf_counter()
+            t1 = time.perf_counter()
+            kernel = Gaussian.gaussian_kernel(kernel_size, sigma)
+            t_kernel = time.perf_counter() - t1
+
+            t2 = time.perf_counter()
+            blurry = cv2.filter2D(img, -1, kernel, borderType=cv2.BORDER_CONSTANT)
+            t_conv = time.perf_counter() - t2
+
+            t3 = time.perf_counter()
+            result_gauss = np.clip(blurry, 0, 255).astype(np.uint8)
+            t_clip = time.perf_counter() - t3
+
+            gauss_total = t_kernel + t_conv + t_clip
+
+            results.append("<font color='#50fa7b'>Gaussian Blur (Spatial Domain - 3 bước)</font>")
+            results.append(f"Kernel: {kernel_size}×{kernel_size}, σ = {sigma:.2f}")
+            results.append(f"   • 1. Tạo kernel Gaussian  : {t_kernel*1000:.3f} ms")
+            results.append(f"   • 2. Convolution          : {t_conv*1000:.3f} ms")
+            results.append(f"   • 3. Clip & Cast          : {t_clip*1000:.3f} ms")
+            results.append(f"Tổng thời gian: <b>{gauss_total*1000:.2f} ms</b> → "
+                        f"<font color='#50fa7b'>nhanh hơn {freq_total/gauss_total:.1f}x</font>")
+            results.append("")
+
+            # ---- Laplacian Sharpening (3 bước) ----
+            t1 = time.perf_counter()
+            lap = Laplacian()
+            sharpened = lap.Filter(img, kernel_size=3, neighborhood=8)
+            lap_total = time.perf_counter() - t1
+
+            results.append("<font color='#50fa7b'>Laplacian Sharpening (Spatial)</font>")
+            results.append(f"   • Toàn bộ xử lý: {lap_total*1000:.3f} ms (kernel 3×3)")
+
+        else:  # high-pass → Sobel
+            sobel = Gradien_Sobel()
+
+            t1 = time.perf_counter()
+            kernel_x = sobel.get_sobel_kernels(3, dx=1, dy=0)
+            t_kx = time.perf_counter() - t1
+
+            t1 = time.perf_counter()
+            gx = Calculator.float_convolution(img, kernel_x, padding=True)
+            t_conv_x = time.perf_counter() - t1
+
+            t1 = time.perf_counter()
+            kernel_y = sobel.get_sobel_kernels(3, dx=0, dy=1)
+            t_ky = time.perf_counter() - t1
+
+            t1 = time.perf_counter()
+            gy = Calculator.float_convolution(img, kernel_y, padding=True)
+            t_conv_y = time.perf_counter() - t1
+
+            t1 = time.perf_counter()
+            mag = np.sqrt(gx**2 + gy**2)
+            result_sobel = np.clip(mag, 0, 255).astype(np.uint8)
+            t_final = time.perf_counter() - t1
+
+            sobel_total = t_kx + t_conv_x + t_ky + t_conv_y + t_final
+
+            results.append("<font color='#50fa7b'>Sobel Edge Detection (Spatial Domain - 5 bước)</font>")
+            results.append(f"   • 1. Tạo kernel X         : {t_kx*1000:.3f} ms")
+            results.append(f"   • 2. Convolution X        : {t_conv_x*1000:.3f} ms")
+            results.append(f"   • 3. Tạo kernel Y         : {t_ky*1000:.3f} ms")
+            results.append(f"   • 4. Convolution Y        : {t_conv_y*1000:.3f} ms")
+            results.append(f"   • 5. Tính biên độ + Clip  : {t_final*1000:.3f} ms")
+            results.append(f"Tổng thời gian: <b>{sobel_total*1000:.2f} ms</b> → "
+                        f"<font color='#50fa7b'>nhanh hơn {freq_total/sobel_total:.1f}x</font>")
+
+        # === HIỂN THỊ KẾT QUẢ ===
+        final_text = "\n".join(results)
+
+        QMetaObject.invokeMethod(
+            self.timing_text,
+            "setPlainText",
+            Qt.QueuedConnection,
+            Q_ARG(str, final_text)
+        )
     # --- Các phương thức Utility ---
 
     def reset_log_slider(self):
