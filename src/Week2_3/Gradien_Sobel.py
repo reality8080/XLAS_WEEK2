@@ -30,8 +30,7 @@ class Gradien_Sobel:
         return kernel_2d.astype(np.float64)
     
 
-    def apply_sobel(self,image: np.ndarray, ddepth: int, dx: int, dy: int, ksize=3, scale=1.0, delta=0.0):
-
+    def apply_sobel(self, image: np.ndarray, ddepth: int, dx: int, dy: int, ksize=3, scale=1.0, delta=0.0, original:np.ndarray=None, blend=False, blend_scale=0.5):
         if not (dx == 1 and dy == 0) and not (dx == 0 and dy == 1):
             raise ValueError("Sobel chỉ hỗ trợ (dx=1, dy=0) cho đạo hàm X hoặc (dx=0, dy=1) cho đạo hàm Y.")
         try:
@@ -43,6 +42,7 @@ class Gradien_Sobel:
         dst = Calculator.float_convolution(image, kernel, padding=True)
 
         dst = dst * scale + delta
+        
         if ddepth == cv2.CV_8U:
             abs_dst = np.absolute(dst)
             final_dst = np.clip(abs_dst, 0, 255).astype(np.uint8)
@@ -56,4 +56,9 @@ class Gradien_Sobel:
             final_dst = dst.astype(np.float64)
         else:
             final_dst = dst.astype(np.float64)
+
+        if blend and original is not None:
+            # Sharpen: original + blend_scale * grad (tăng contrast tại edges)
+            result = original.astype(np.float32) + blend_scale * final_dst.astype(np.float32)
+            return np.clip(result, 0, 255).astype(np.uint8)
         return final_dst

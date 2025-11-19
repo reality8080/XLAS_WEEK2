@@ -394,12 +394,18 @@ class ImageApp(QWidget):
         file_name, _ = QFileDialog.getOpenFileName(
             self, "Chọn ảnh", "", "Image Files (*.png *.jpg *.bmp *.jpeg)"
         )
+        
         if not file_name:
             return
 
         img_bgr = cv2.imread(file_name)
         if img_bgr is None:
             return
+
+        self.current_image_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        self.original_gray = cv2.cvtColor(self.current_image_rgb, cv2.COLOR_RGB2GRAY)
+        self.original_bgr = img_bgr.copy()                    # Thêm: lưu ảnh gốc BGR
+        self.original_hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)  # Thêm: lưu bản HSV
 
         self.current_image_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
         self.original_gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
@@ -471,10 +477,10 @@ class ImageApp(QWidget):
             )
 
             # 3. Chuyển ảnh xám đã cân bằng về định dạng RGB để hiển thị
-            img_eq_rgb = cv2.cvtColor(img_eq_gray, cv2.COLOR_GRAY2RGB)
+            result_rgb = self.process_on_value_channel(img_eq_gray)
 
             # 4. Hiển thị ảnh
-            self.display_image(img_eq_rgb)
+            self.display_image(result_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
 
@@ -490,9 +496,8 @@ class ImageApp(QWidget):
             )
 
             # Chuyển ảnh xám đã lọc về định dạng RGB để hiển thị
-            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
-            
-            self.display_image(filtered_img_rgb)
+            result_rgb = self.process_on_value_channel(filtered_gray)
+            self.display_image(result_rgb)
         
     def apply_median_filter(self):
         if self.original_gray is not None:
@@ -503,8 +508,8 @@ class ImageApp(QWidget):
                 kernel_size=kernel_size, 
                 padding=True
             )
-            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_img_rgb)
+            result_rgb = self.process_on_value_channel(filtered_gray)
+            self.display_image(result_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
 
@@ -518,8 +523,8 @@ class ImageApp(QWidget):
                 kernel_size=kernel_size, 
                 padding=True
             )
-            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_img_rgb)
+            result_rgb = self.process_on_value_channel(filtered_gray)
+            self.display_image(result_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
 
@@ -548,8 +553,8 @@ class ImageApp(QWidget):
                 kernel_size=kernel_size, 
                 padding=True
             )
-            filtered_img_rgb = cv2.cvtColor(filtered_gray, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_img_rgb)
+            result_rgb = self.process_on_value_channel(filtered_gray)
+            self.display_image(result_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
 
@@ -567,9 +572,8 @@ class ImageApp(QWidget):
                 padding=True
             )
 
-            filtered_img_rgb = cv2.cvtColor(filtered_gray.astype(np.uint8), cv2.COLOR_GRAY2RGB)
-            
-            self.display_image(filtered_img_rgb)
+            result_rgb = self.process_on_value_channel(filtered_gray)
+            self.display_image(result_rgb)
         else:
             print("Vui lòng tải ảnh trước.")
     def apply_unsharp(self):
@@ -586,8 +590,8 @@ class ImageApp(QWidget):
                 amount=amount,
                 threshold=threshold
             )
-            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_rgb)
+            result_rgb = self.process_on_value_channel(filtered)
+            self.display_image(result_rgb)
 
     def apply_highboost(self):
         if self.original_gray is not None:
@@ -603,8 +607,8 @@ class ImageApp(QWidget):
                 amount=amount,
                 threshold=threshold
             )
-            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_rgb)
+            result_rgb = self.process_on_value_channel(filtered)
+            self.display_image(result_rgb)
 
     def apply_laplacian(self):
         if self.original_gray is not None:
@@ -617,10 +621,11 @@ class ImageApp(QWidget):
                 image=self.original_gray,
                 kernel_size=kernel_size,
                 neighborhood=neighborhood,
-                padding=True
+                padding=True,  # Giữ True
+                scale=0.3  # ← THÊM NẾU MUỐN, hoặc expose slider
             )
-            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_rgb)
+            result_rgb = self.process_on_value_channel(filtered)
+            self.display_image(result_rgb)
 
     def apply_sobel_x(self):
         self._apply_sobel(dx=1, dy=0)
@@ -636,45 +641,49 @@ class ImageApp(QWidget):
             return
 
         ksize = self.sobel_ksize_slider.value()
+        blend = True  # Hoặc thêm checkbox/slider cho blend
 
         if dx == 1 and dy == 1:  # Magnitude
             gx = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_32F, 1, 0, ksize)
             gy = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_32F, 0, 1, ksize)
             mag = np.sqrt(gx**2 + gy**2)
             mag = np.clip(mag, 0, 255).astype(np.uint8)
+            if blend:
+                mag = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_8U, 1, 1, ksize, original=self.original_gray, blend=True)  # Reuse
             result = mag
         else:
-            result = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_8U, dx, dy, ksize)
+            result = self.sobel_processor.apply_sobel(self.original_gray, cv2.CV_8U, dx, dy, ksize, blend=blend, original=self.original_gray)
 
-        result_rgb = cv2.cvtColor(result, cv2.COLOR_GRAY2RGB)
+        # Luôn dùng process_on_value_channel để giữ màu
+        result_rgb = self.process_on_value_channel(result)
         self.display_image(result_rgb)
 
-        def toggle_order_slider(self):
-            """Ẩn/hiện slider order dựa trên mode"""
-            mode = self.freq_mode_combo.currentText()
-            self.order_slider.setVisible(mode == "Butterworth")
+    def toggle_order_slider(self):
+        """Ẩn/hiện slider order dựa trên mode"""
+        mode = self.freq_mode_combo.currentText()
+        self.order_slider.setVisible(mode == "Butterworth")
 
-        def apply_frequency_filter(self):
-            if self.original_gray is None:
-                print("Vui lòng tải ảnh trước.")
-                return
+    def apply_frequency_filter(self):
+        if self.original_gray is None:
+            print("Vui lòng tải ảnh trước.")
+            return
 
-            cutoff = self.cutoff_slider.value()
-            order = self.order_slider.value()
-            filter_type = "low" if self.freq_type_combo.currentText() == "Low-pass" else "high"
-            mode = self.freq_mode_combo.currentText()
+        cutoff = self.cutoff_slider.value()
+        order = self.order_slider.value()
+        filter_type = "low" if self.freq_type_combo.currentText() == "Low-pass" else "high"
+        mode = self.freq_mode_combo.currentText()
 
-            if mode == "Ideal":
-                filtered = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
-            elif mode == "Butterworth":
-                filtered = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
-            elif mode == "Gaussian":
-                filtered = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
-            else:
-                return
+        if mode == "Ideal":
+            filtered = self.ideal_processor.filter(self.original_gray, cutoff, type=filter_type)
+        elif mode == "Butterworth":
+            filtered = self.butterworth_processor.filter(self.original_gray, cutoff, order=order, type=filter_type)
+        elif mode == "Gaussian":
+            filtered = self.gaussian_freq_processor.filter(self.original_gray, cutoff, type=filter_type)
+        else:
+            return
 
-            filtered_rgb = cv2.cvtColor(filtered, cv2.COLOR_GRAY2RGB)
-            self.display_image(filtered_rgb)
+        result_rgb = self.process_on_value_channel(filtered)
+        self.display_image(result_rgb)
 
     def toggle_order_slider(self):
         """Ẩn/hiện slider order dựa trên mode"""
@@ -823,6 +832,23 @@ class ImageApp(QWidget):
         self.use_auto_gamma = True
     def reset_piecewise_slider(self):
         self.use_auto_piecewise = True
+
+    def process_on_value_channel(self, processed_v):
+        if self.original_hsv is None:
+            processed_v = np.clip(processed_v, 0, 255).astype(np.uint8)
+            return cv2.cvtColor(processed_v, cv2.COLOR_GRAY2RGB)
+        
+        # ← THÊM DEBUG: Kiểm tra shape
+        if processed_v.shape != self.original_hsv.shape[:2]:
+            print(f"Shape mismatch: processed_v {processed_v.shape}, original {self.original_hsv.shape[:2]}")
+            # Crop hoặc resize nếu cần, nhưng với fix trên thì khớp
+            processed_v = processed_v[:self.original_hsv.shape[0], :self.original_hsv.shape[1]]
+        
+        processed_v = np.clip(processed_v, 0, 255).astype(np.uint8)
+        hsv_processed = self.original_hsv.copy()
+        hsv_processed[..., 2] = processed_v
+        result_bgr = cv2.cvtColor(hsv_processed, cv2.COLOR_HSV2BGR)
+        return cv2.cvtColor(result_bgr, cv2.COLOR_BGR2RGB)
 
     def display_image(self, img_array):
         """Chỉ hiển thị ảnh và cập nhật histogram + frequency (qua hàm riêng)"""

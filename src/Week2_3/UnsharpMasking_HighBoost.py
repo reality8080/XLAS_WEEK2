@@ -19,6 +19,8 @@ class UnsharpMasking_HighBoost:
         if amount < 0:
             raise ValueError("Amount phải là số không âm.")
         
+        amount = min(amount, 2.0)
+
         image = image.astype(np.float32)
 
         # Tạo ảnh mờ bằng Gaussian Blur
@@ -26,7 +28,7 @@ class UnsharpMasking_HighBoost:
 
         # Tính phần chi tiết
         detail = image - self.image_blur
-
+        detail = np.clip(detail, -50, 50)
         # Áp dụng ngưỡng nếu cần
         if threshold > 0:
             detail = np.where(np.abs(detail) > threshold, detail, 0)

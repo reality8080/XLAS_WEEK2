@@ -18,7 +18,7 @@ class Histogram:
         hist_norm = hist / hist.sum()
         return img_gray, hist_norm
 
-    def histogram_Equalization(img_gray:np.ndarray, hist_norm):
+    def histogram_Equalization(self,img_gray:np.ndarray, hist_norm):
         img_gray = img_gray.astype(np.uint8)
         cdf = np.cumsum(hist_norm)
         sk = np.round(255 * cdf).astype('uint8')
