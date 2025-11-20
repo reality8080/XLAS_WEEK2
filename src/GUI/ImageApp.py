@@ -621,7 +621,6 @@ class ImageApp(QWidget):
                 image=self.original_gray,
                 kernel_size=kernel_size,
                 neighborhood=neighborhood,
-                padding=True,  # Giữ True
                 scale=0.3  # ← THÊM NẾU MUỐN, hoặc expose slider
             )
             result_rgb = self.process_on_value_channel(filtered)
