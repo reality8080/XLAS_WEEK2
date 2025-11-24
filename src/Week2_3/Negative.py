@@ -1,8 +1,7 @@
 import numpy as np
 
 class Negative:
-    def __init__(self):
-        self.image = None
-
-    def negative(self):
-        return 255- self.image
+    @staticmethod
+    def negative(img: np.ndarray) -> np.ndarray:
+        """Negative transform."""
+        return 255 - img

@@ -1,61 +1,22 @@
 import numpy as np
+from scipy.ndimage import convolve
 
 class Calculator:
     def __init__(self):
         pass
     @staticmethod
-    def convolution(A:np.ndarray,kernel:np.ndarray, padding = False):
+    def convolution(A:np.ndarray,kernel:np.ndarray, padding = False, mode = 'constant') -> np.ndarray:
         A=A.astype(np.float32)
         kernel = np.flipud(np.fliplr(kernel))
 
-        hA,wA = A.shape
-        hk,wk = kernel.shape
-
-        if hk > hA or wk > wA:
+        if kernel.shape[0] > A.shape[0] or kernel.shape[1] > A.shape[1]:
             raise ValueError("Kernel size must be smaller than input matrix.")
 
         if padding:
-            pad_h = hk//2
-            pad_w = wk//2
+            result = convolve(A, kernel, mode=mode, cval=0.0)
+        else:
+            result = convolve(A, kernel, mode='valid', cval=0.0)
 
-            A = np.pad(A, ((pad_h,pad_h), (pad_w,pad_w)), mode = 'constant',constant_values=0)
-            hA,wA = A.shape
-
-        B = np.zeros((hA-hk+1,wA-wk+1),dtype=np.float32)
-
-        for i in range(0,hA-hk+1):
-            for j in range(0,wA-wk+1):
-                s_A = A[i:i+hk, j:j+wk]
-                B[i,j] = np.sum(kernel*s_A)
-        
-        return np.clip(B, 0, 255).astype(np.uint8)
-    
-    @staticmethod
-    def float_convolution(image:np.ndarray, kernel:np.ndarray, padding = True)->np.ndarray:
-        image=image.astype(np.float64)
-        kernel = np.flipud(np.fliplr(kernel))
-
-        h_image, w_image = image.shape
-        hk,wk = kernel.shape
-
-        if hk > h_image or wk > w_image:
-            raise ValueError("Kernel size must be smaller than input matrix.")
-
-        if padding:
-            pad_h = hk//2
-            pad_w = wk//2
-
-            image = np.pad(image, ((pad_h,pad_h), (pad_w,pad_w)), mode = 'constant',constant_values=0)
-        h_image, w_image = image.shape
-
-
-
-        B = np.zeros((h_image-hk+1,w_image-wk+1),dtype=np.float64)
-
-        for i in range(0,h_image-hk+1):
-            for j in range(0,w_image-wk+1):
-                s_A = image[i:i+hk, j:j+wk]
-                B[i,j] = np.sum(kernel*s_A)
-        
-        return B.astype(np.float64)
-    
+        if A.dtype == np.uint8:
+            result = np.clip(result, 0, 255).astype(np.uint8)
+        return result.astype(np.float32)
